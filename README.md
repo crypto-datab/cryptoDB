@@ -101,6 +101,33 @@ again.get("users", "alice")      # -> {"name": "Alice", ...}
 
 ---
 
+## nedbd — run NEDB as a server
+
+For client/server setups (multiple apps, a remote admin UI like NEDB Studio, or just keeping the database in its own process), `pip install nedb-engine` ships a daemon. It runs the engine as a long-lived process and serves an HTTP/JSON API; each named database is a durable `NEDB(path)` held open in memory. Connect to it the way you'd connect to Redis or Postgres — over a URL.
+
+```bash
+nedbd                       # http://127.0.0.1:7070, data in ./nedb-data
+# config via env: NEDBD_HOST, NEDBD_PORT, NEDBD_DATA, NEDBD_TOKEN (optional bearer auth)
+```
+
+```bash
+# create a database (optionally seeded with indexes / rows / links)
+curl -X POST localhost:7070/v1/databases -d '{"name":"shop","init":{
+  "indexes":[["users","status","eq"]],
+  "seed":{"users":[{"id":"u1","name":"Ada","status":"active"}]}}}'
+
+# query it (real NQL, real engine)
+curl -X POST localhost:7070/v1/databases/shop/query -d '{"nql":"FROM users WHERE status = \"active\""}'
+
+# write, verify, time-travel — all server-side on the durable log
+curl -X POST localhost:7070/v1/databases/shop/put   -d '{"coll":"users","id":"u2","doc":{"name":"Bo"}}'
+curl       localhost:7070/v1/databases/shop/verify
+```
+
+API: `GET /health` · `GET|POST /v1/databases` · `GET|DELETE /v1/databases/<name>` · `POST …/query` · `POST …/put` · `POST …/index` · `POST …/link` · `DELETE …/rows/<coll>/<id>` · `GET …/verify` · `GET …/log`. Databases persist across daemon restarts (the engine replays its append-only log on open).
+
+---
+
 ## NQL — the NEDB Query Language
 
 One small grammar; the Rust parser is the single source of truth so Python and Node share identical semantics. A fluent builder compiles to the same plan.
@@ -171,7 +198,8 @@ docs/SPEC.md     architecture specification
 - [ ] RDB-style snapshot checkpoint (fast load) that keeps the AOF chain intact
 - [ ] Rust core parity (persistence in `nedb._native`) + criterion benches + `cargo test`
 - [ ] PyO3 wheels + napi-rs binaries published on tag
-- [ ] `nedbd` server: RESP-compatible + native protocol
+- [x] `nedbd` server: HTTP/JSON daemon — durable, multi-database; `pip install` ships the `nedbd` command
+- [ ] `nedbd`: RESP-compatible wire protocol + native protocol
 - [ ] Similarity-picked deltas + schema-aware columnar transforms
 - [ ] On-chain (ITC) root anchoring; WASM build
 
