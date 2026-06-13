@@ -143,6 +143,10 @@ docs/SPEC.md     architecture specification
 - [ ] Similarity-picked deltas + schema-aware columnar transforms
 - [ ] On-chain (ITC) root anchoring; WASM build
 
+## NEDB Studio
+
+The agentic, prompt-to-database GUI for NEDB — natural language → schema, NQL, seed data, and Python/Node snippets — lives in its own repo: **[Eth-Interchained/nedb-studio](https://github.com/Eth-Interchained/nedb-studio)** (Portal-powered, GPLv3).
+
 ## License
 
 Apache-2.0. Part of the [Interchained](https://github.com/interchained) ecosystem.
