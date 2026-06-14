@@ -69,6 +69,10 @@ class NEDB:
 
         self.path = path
         self._aof = None
+        # When True, _log_append buffers writes and skips the per-op fsync; the
+        # caller (the concurrent Sequencer) issues ONE fsync per batch via flush()
+        # — group commit. Default False keeps embedded/direct use durable per-op.
+        self._defer_sync = False
         # Encryption: resolve TMK (arg > env) → load/create DEK → None if no TMK
         self._dek: Optional[bytes] = None
         resolved_tmk = _crypto.resolve_tmk(tmk)
@@ -271,8 +275,9 @@ class NEDB:
         if created and self._aof is not None:
             line = _crypto.aof_encode(json.dumps(rec.to_dict()), self._dek)
             self._aof.write(line + "\n")
-            self._aof.flush()
-            os.fsync(self._aof.fileno())
+            if not self._defer_sync:
+                self._aof.flush()
+                os.fsync(self._aof.fileno())
         return rec, created
 
     def flush(self) -> None:

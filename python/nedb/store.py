@@ -41,8 +41,23 @@ class MVCCStore:
         return None if val is TOMB else val
 
     def keys(self, prefix: str = "", as_of: Optional[int] = None) -> List[str]:
+        # Lock-free read: take an atomic snapshot of the key set, then resolve
+        # versions by `as_of`. Under the concurrent Sequencer a single committer
+        # thread may add a NEW key while we snapshot; CPython raises RuntimeError
+        # ("dict changed size during iteration") only during construction, so we
+        # retry the snapshot (collisions are microsecond-rare). Reading the per-key
+        # version chain itself is always safe — chains are append-only.
+        snap: List[str]
+        for _ in range(128):
+            try:
+                snap = list(self._v.keys())
+                break
+            except RuntimeError:
+                continue
+        else:
+            snap = list(self._v.keys())
         out = []
-        for k in self._v:
+        for k in snap:
             if prefix and not k.startswith(prefix):
                 continue
             if self.get(k, as_of) is not None:

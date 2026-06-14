@@ -48,6 +48,7 @@ from urllib.parse import urlparse, parse_qs
 
 from . import __version__
 from .engine import NEDB
+from .concurrent import Sequencer
 from .log import ReplayError
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
@@ -86,7 +87,7 @@ class Manager:
         p = self._path(name)
         return os.path.exists(os.path.join(p, "log.aof")) or os.path.exists(os.path.join(p, "meta.json"))
 
-    def open(self, name: str) -> NEDB:
+    def open(self, name: str) -> Sequencer:
         self._valid(name)
         if name not in self._open:
             snap_path = os.path.join(self._path(name), "snapshot.json")
@@ -95,10 +96,13 @@ class Manager:
             db = NEDB(self._path(name), tmk=self._tmk)
             if had_snap:
                 print(f"  [{name}] loaded from snapshot (seq={db.seq})")
-            self._open[name] = db
+            # Wrap every database in a single-writer, group-commit Sequencer so the
+            # threaded daemon can serve concurrent clients safely AND fast: parallel
+            # reads, batched durable writes, one correct chain. No global lock.
+            self._open[name] = Sequencer(db)
         return self._open[name]
 
-    def require(self, name: str) -> NEDB:
+    def require(self, name: str) -> Sequencer:
         self._valid(name)
         if not self.exists(name):
             raise HttpError(404, f"database not found: {name}")

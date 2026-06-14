@@ -27,6 +27,7 @@ from .mongo import (
     MongoCompat, MongoClient, MongoError, MongoUnsupportedError, ObjectId,
 )
 from .autoindex import AutoIndexDB
+from .concurrent import Sequencer
 
 try:  # compiled Rust core, present in platform wheels (PyO3 via maturin)
     from . import _native  # type: ignore
@@ -41,7 +42,7 @@ __all__ = [
     "sql_exec", "sql_to_nql", "SQLError", "SQLUnsupportedError",
     "RedisCompat", "RedisError", "RedisUnsupportedError",
     "MongoCompat", "MongoClient", "MongoError", "MongoUnsupportedError", "ObjectId",
-    "AutoIndexDB",
+    "AutoIndexDB", "Sequencer",
     "_native", "__has_native__",
 ]
-__version__ = "0.7.6"
+__version__ = "0.8.0"

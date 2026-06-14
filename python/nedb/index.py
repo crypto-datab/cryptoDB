@@ -85,4 +85,14 @@ class Indexes:
         return f"{coll}.{field}" in self.eq
 
     def search_fields(self, coll: str) -> List[str]:
-        return [k.split(".", 1)[1] for k in self.inv if k.startswith(coll + ".")]
+        # Lock-free: snapshot keys with retry (a concurrent create_index may add
+        # one mid-iteration under the Sequencer's single-writer committer).
+        for _ in range(128):
+            try:
+                inv_keys = list(self.inv.keys())
+                break
+            except RuntimeError:
+                continue
+        else:
+            inv_keys = list(self.inv.keys())
+        return [k.split(".", 1)[1] for k in inv_keys if k.startswith(coll + ".")]
