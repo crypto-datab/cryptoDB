@@ -84,8 +84,64 @@ class NEDB:
         self._meta_path = os.path.join(path, "meta.json")
         if os.path.exists(self._aof_path) or os.path.exists(self._meta_path):
             self._load()
+            # Backfill: if encryption is now enabled but the AOF still has plain
+            # lines, rewrite the entire log encrypted in place so no cleartext
+            # survives on disk.  Also re-checkpoint so snapshot.json is encrypted.
+            if self._dek is not None and os.path.exists(self._aof_path):
+                self._backfill_encrypt_if_needed()
         # Append mode: never truncates the existing log.
         self._aof = open(self._aof_path, "a", encoding="utf-8")
+
+    def _backfill_encrypt_if_needed(self) -> None:
+        """Detect a plain-text AOF and rewrite it fully encrypted.
+
+        Triggered on open when NEDB_TMK is set but the existing log contains
+        unencrypted entries.  Uses atomic write (tmp → rename) so the old log
+        is never left in a half-written state.  Checkpoints afterwards so the
+        snapshot is also encrypted.
+
+        Safe to call on an already-encrypted AOF — it's a no-op if every line
+        is already an encrypted envelope.
+        """
+        # Peek at the first non-empty line of the AOF.
+        first_plain = None
+        with open(self._aof_path, encoding="utf-8") as fh:
+            for raw in fh:
+                stripped = raw.strip()
+                if not stripped:
+                    continue
+                try:
+                    env = json.loads(stripped)
+                    if isinstance(env, dict) and env.get("enc") == 1:
+                        return  # already encrypted — nothing to do
+                    first_plain = stripped
+                except Exception:
+                    pass
+                break
+
+        if first_plain is None:
+            return  # empty AOF
+
+        # AOF has plain lines — rewrite fully encrypted
+        print(f"  [nedb] backfill-encrypting existing log ({self._aof_path})…")
+        tmp_path = self._aof_path + ".enc_tmp"
+        with open(self._aof_path, encoding="utf-8") as fh_in, \
+             open(tmp_path, "w", encoding="utf-8") as fh_out:
+            for raw in fh_in:
+                # Each line might already be encrypted (mixed state is fine)
+                decoded = _crypto.aof_decode(raw, self._dek)
+                if not decoded:
+                    continue
+                # Re-encode encrypted
+                fh_out.write(_crypto.aof_encode(decoded, self._dek) + "\n")
+            fh_out.flush()
+            os.fsync(fh_out.fileno())
+
+        os.replace(tmp_path, self._aof_path)
+        print(f"  [nedb] AOF backfill-encrypt complete.")
+
+        # Re-checkpoint so snapshot.json is also encrypted and chain is current
+        _snap.save_snapshot(self)
 
     def _load(self) -> None:
         # ── Try snapshot-assisted load first (O(delta) instead of O(total)) ─
