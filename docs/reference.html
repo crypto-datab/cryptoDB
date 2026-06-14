@@ -231,6 +231,12 @@ pre{
       <a href="#http">Any HTTP Client</a>
     </div>
     <div class="sb-group">
+      <div class="sb-group-label">Adapters (v0.4.0)</div>
+      <a href="#sql">SQL Compatibility</a>
+      <a href="#redis">Redis Compatibility</a>
+      <a href="#autoindex">Auto-Indexing</a>
+    </div>
+    <div class="sb-group">
       <div class="sb-group-label">Release</div>
       <a href="#changelog">Changelog</a>
     </div>
@@ -926,10 +932,161 @@ requests.post(
 
 <div class="divider"></div>
 
+<!-- ═══════════════════ SQL ADAPTER ═══════════════════ -->
+<section class="section" id="sql">
+  <div class="section-tag">Adapters</div>
+  <h2>SQL Compatibility</h2>
+  <p class="section-lead">Translate standard SQL to NQL and NEDB operations — no MySQL or MariaDB code involved. SQL is a familiar entry point; the NEDB engine executes everything natively.</p>
+
+  <div class="code-wrap">
+    <div class="code-label">Python</div>
+    <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<pre><span class="ck">from</span> nedb <span class="ck">import</span> NEDB
+<span class="ck">from</span> nedb.sql <span class="ck">import</span> sql_exec, sql_to_nql
+
+db = NEDB(<span class="cs">"./data"</span>)
+
+<span class="cc"># SELECT → NQL query</span>
+sql_exec(db, <span class="cs">"SELECT * FROM users WHERE status = 'active' ORDER BY age DESC LIMIT 10"</span>)
+sql_exec(db, <span class="cs">"SELECT * FROM users WHERE bio LIKE '%rust%'"</span>)       <span class="cc"># LIKE → SEARCH</span>
+sql_exec(db, <span class="cs">f"SELECT * FROM orders AS OF {snap}"</span>)               <span class="cc"># NEDB extension: time-travel</span>
+
+<span class="cc"># INSERT → db.put()</span>
+sql_exec(db, <span class="cs">"INSERT INTO users (id, name, age, status) VALUES ('u1', 'Ada', 31, 'active')"</span>)
+
+<span class="cc"># UPDATE → fetch + merge + db.put()  (all other fields preserved)</span>
+sql_exec(db, <span class="cs">"UPDATE users SET age = 32 WHERE id = 'u1'"</span>)
+
+<span class="cc"># DELETE → db.delete()</span>
+sql_exec(db, <span class="cs">"DELETE FROM users WHERE id = 'u1'"</span>)
+
+<span class="cc"># See what NQL a SELECT compiles to:</span>
+sql_to_nql(<span class="cs">"SELECT * FROM users WHERE status = 'active' ORDER BY age DESC LIMIT 5"</span>)
+<span class="cc"># → 'FROM users WHERE status = "active" ORDER BY age DESC LIMIT 5'</span></pre>
+  </div>
+
+  <h3>Supported SQL</h3>
+  <table class="ptbl">
+    <tr><th>Statement</th><th>Mapped to</th><th>Notes</th></tr>
+    <tr><td><code>SELECT *</code></td><td>NQL <code>FROM … WHERE … ORDER BY … LIMIT</code></td><td>All columns returned (no projection yet)</td></tr>
+    <tr><td><code>WHERE field = 'v'</code></td><td><code>WHERE field = "v"</code></td><td>All six ops: <code>= != &lt; &lt;= &gt; &gt;=</code></td></tr>
+    <tr><td><code>WHERE field LIKE '%x%'</code></td><td><code>SEARCH "x"</code></td><td>Best-effort; requires a <code>search</code> index</td></tr>
+    <tr><td><code>AS OF n</code></td><td><code>AS OF n</code></td><td>NEDB extension — time-travel in SQL</td></tr>
+    <tr><td><code>INSERT INTO t (id, …) VALUES (…)</code></td><td><code>db.put()</code></td><td>An <code>id</code> or <code>_id</code> column is required</td></tr>
+    <tr><td><code>UPDATE t SET f=v WHERE id = x</code></td><td>fetch + merge + <code>db.put()</code></td><td>Only id-targeted updates; all other fields preserved</td></tr>
+    <tr><td><code>DELETE FROM t WHERE id = x</code></td><td><code>db.delete()</code></td><td>Only id-targeted deletes</td></tr>
+  </table>
+  <div class="note">
+    <p><strong>OR, JOIN, subqueries, and aggregates</strong> raise <code>SQLUnsupportedError</code> with a clear message. They are on the roadmap.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════ REDIS ═══════════════════ -->
+<section class="section" id="redis">
+  <div class="section-tag">Adapters</div>
+  <h2>Redis Compatibility</h2>
+  <p class="section-lead">Map Redis commands to NEDB primitives — no hiredis or Redis server code involved. Redis keys become NEDB collections; the engine handles persistence, integrity, and time-travel automatically.</p>
+
+  <div class="code-wrap">
+    <div class="code-label">Python</div>
+    <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<pre><span class="ck">from</span> nedb <span class="ck">import</span> NEDB
+<span class="ck">from</span> nedb.redis_compat <span class="ck">import</span> RedisCompat
+
+r = RedisCompat(NEDB(<span class="cs">"./data"</span>))
+
+<span class="cc"># Strings</span>
+r.execute(<span class="cs">"SET"</span>, <span class="cs">"k"</span>, <span class="cs">"hello"</span>)           <span class="cc"># → "OK"</span>
+r.execute(<span class="cs">"GET"</span>, <span class="cs">"k"</span>)                    <span class="cc"># → "hello"</span>
+r.execute(<span class="cs">"INCR"</span>, <span class="cs">"counter"</span>)             <span class="cc"># → 1</span>
+r.execute(<span class="cs">"MSET"</span>, <span class="cs">"a"</span>, <span class="cs">"1"</span>, <span class="cs">"b"</span>, <span class="cs">"2"</span>)   <span class="cc"># → "OK"</span>
+
+<span class="cc"># Hashes  (Redis key names with colons work: "user:1")</span>
+r.execute(<span class="cs">"HSET"</span>, <span class="cs">"user:1"</span>, <span class="cs">"name"</span>, <span class="cs">"Ada"</span>, <span class="cs">"age"</span>, <span class="cs">"31"</span>)
+r.execute(<span class="cs">"HGET"</span>, <span class="cs">"user:1"</span>, <span class="cs">"name"</span>)     <span class="cc"># → "Ada"</span>
+r.execute(<span class="cs">"HGETALL"</span>, <span class="cs">"user:1"</span>)          <span class="cc"># → {"name": "Ada", "age": "31"}</span>
+
+<span class="cc"># Sets</span>
+r.execute(<span class="cs">"SADD"</span>, <span class="cs">"tags"</span>, <span class="cs">"python"</span>, <span class="cs">"rust"</span>)
+r.execute(<span class="cs">"SMEMBERS"</span>, <span class="cs">"tags"</span>)           <span class="cc"># → {"python", "rust"}</span>
+r.execute(<span class="cs">"SISMEMBER"</span>, <span class="cs">"tags"</span>, <span class="cs">"rust"</span>) <span class="cc"># → 1</span>
+
+<span class="cc"># Lists</span>
+r.execute(<span class="cs">"RPUSH"</span>, <span class="cs">"q"</span>, <span class="cs">"a"</span>, <span class="cs">"b"</span>, <span class="cs">"c"</span>)
+r.execute(<span class="cs">"LRANGE"</span>, <span class="cs">"q"</span>, <span class="cs">0</span>, <span class="cs">-1</span>)         <span class="cc"># → ["a", "b", "c"]</span>
+r.execute(<span class="cs">"LPOP"</span>, <span class="cs">"q"</span>)                  <span class="cc"># → "a"</span>
+
+<span class="cc"># Unsupported — clear error + roadmap link</span>
+r.execute(<span class="cs">"EXPIRE"</span>, <span class="cs">"k"</span>, <span class="cs">60</span>)            <span class="cc"># → RedisUnsupportedError</span></pre>
+  </div>
+
+  <h3>Command coverage</h3>
+  <table class="ptbl">
+    <tr><th>Group</th><th>Commands</th></tr>
+    <tr><td>Strings</td><td><code>SET GET DEL EXISTS INCR INCRBY DECR DECRBY MSET MGET SETNX GETDEL APPEND STRLEN TYPE RENAME KEYS DBSIZE FLUSHDB</code></td></tr>
+    <tr><td>Hashes</td><td><code>HSET HMSET HSETNX HGET HMGET HGETALL HDEL HEXISTS HKEYS HVALS HLEN HINCRBY</code></td></tr>
+    <tr><td>Sets</td><td><code>SADD SMEMBERS SISMEMBER SREM SCARD SUNION SINTER SDIFF</code></td></tr>
+    <tr><td>Lists</td><td><code>LPUSH RPUSH LRANGE LLEN LINDEX LSET LPOP RPOP</code></td></tr>
+    <tr><td>Unsupported (roadmap)</td><td><code>EXPIRE TTL PEXPIRE PTTL PERSIST · SUBSCRIBE PUBLISH · MULTI EXEC DISCARD WATCH</code></td></tr>
+  </table>
+
+  <div class="note">
+    <p><strong>Key encoding:</strong> Redis key names that contain characters invalid in NQL collection names (e.g. <code>user:1</code>) are stored using a safe hex encoding (<code>user__3a__1</code>). This is transparent — you always use the original key name in commands.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════ AUTOINDEX ═══════════════════ -->
+<section class="section" id="autoindex">
+  <div class="section-tag">Adapters</div>
+  <h2>Auto-Indexing</h2>
+  <p class="section-lead">Wrap a NEDB instance with <code>AutoIndexDB</code> and indexes are created automatically based on observed query patterns — no manual <code>create_index()</code> calls required.</p>
+
+  <div class="code-wrap">
+    <div class="code-label">Python</div>
+    <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+<pre><span class="ck">from</span> nedb <span class="ck">import</span> NEDB, AutoIndexDB
+
+db = AutoIndexDB(NEDB(<span class="cs">"./data"</span>), threshold=<span class="cn">5</span>, verbose=<span class="cn">True</span>)
+
+<span class="cc"># Query as normal — field usage is tallied automatically</span>
+db.query(<span class="cs">'FROM users WHERE status = "active"'</span>)   <span class="cc"># 1/5</span>
+db.query(<span class="cs">'FROM users WHERE status = "active"'</span>)   <span class="cc"># 2/5</span>
+<span class="cc"># ... 3 more ...</span>
+db.query(<span class="cs">'FROM users WHERE status = "active"'</span>)
+<span class="cc"># [autoindex] created eq index on users.status (threshold=5)</span>
+
+<span class="cc"># Check what's been created and what's close</span>
+db.analyze()
+<span class="cc"># {"tallies": {"users.status (eq)": 5}, "indexes_created": ["users.status (eq)"], "threshold": 5}</span>
+
+db.suggest()
+<span class="cc"># ["users.age (ordered) — 3/5 queries"]  ← not yet at threshold</span>
+
+<span class="cc"># All other NEDB methods work unchanged — AutoIndexDB is a transparent proxy</span>
+db.put(<span class="cs">"users"</span>, <span class="cs">"u1"</span>, {<span class="cs">"name"</span>: <span class="cs">"Ada"</span>, <span class="cs">"status"</span>: <span class="cs">"active"</span>})
+db.get(<span class="cs">"users"</span>, <span class="cs">"u1"</span>)
+db.verify()</pre>
+  </div>
+
+  <table class="ptbl">
+    <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>db</code></td><td>NEDB</td><td>Any NEDB instance (embedded or durable)</td></tr>
+    <tr><td><code>threshold</code></td><td>int</td><td>Query count before an index is auto-created. Default: <code>5</code></td></tr>
+    <tr><td><code>verbose</code></td><td>bool</td><td>Print a message when an index is created. Default: <code>False</code></td></tr>
+  </table>
+
+  <h3>How it works</h3>
+  <p>Every <code>query()</code> call is intercepted. The NQL string is parsed to extract <code>WHERE</code> field names and <code>ORDER BY</code> fields. Each (collection, field, kind) combination is tallied. Once the count reaches <code>threshold</code>, <code>create_index()</code> is called automatically. Equality conditions (<code>=</code>, <code>!=</code>) create an <code>eq</code> index; range comparisons (<code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>) and <code>ORDER BY</code> create an <code>ordered</code> index.</p>
+</section>
+
+<div class="divider"></div>
+
 <!-- ═══════════════════ CHANGELOG ═══════════════════ -->
 <section class="section" id="changelog">
   <div class="section-tag">Release History</div>
   <h2>Changelog</h2>
+
+  <div class="cl-item"><span class="cl-ver">0.4.0</span><div class="cl-body"><h4>SQL adapter, Redis compatibility, auto-indexing</h4><p>Three new pure-Python adapters, zero external dependencies. <strong>SQL:</strong> <code>sql_exec(db, sql)</code> translates SELECT/INSERT/UPDATE/DELETE to NQL and NEDB primitives — MariaDB users can write what they know and immediately get time-travel and hash-chain integrity. <strong>Redis:</strong> <code>RedisCompat(db).execute(cmd, *args)</code> maps SET/GET/HSET/HGETALL/SADD/SMEMBERS/LPUSH/LRANGE and 30+ more commands to NEDB. EXPIRE/TTL/SUBSCRIBE/MULTI return <code>RedisUnsupportedError</code> with a roadmap note. <strong>Auto-indexing:</strong> <code>AutoIndexDB(db, threshold=5)</code> tallies query field usage and creates indexes automatically. 48 new tests; 59/59 total.</p></div></div>
 
   <div class="cl-item"><span class="cl-ver">0.3.1</span><div class="cl-body"><h4>Universal wheel — installs everywhere</h4><p>Switched build backend to hatchling. Publishes a <code>py3-none-any</code> wheel + sdist that installs on any platform and Python version without a toolchain. Fixes the silent upgrade failure on Intel Mac caused by arm64-only wheels in 0.2.0/0.3.0. The <code>nedbd</code> command is always present after install.</p></div></div>
 
