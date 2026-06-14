@@ -146,18 +146,27 @@ FROM <collection>
 
 ---
 
-## What's measured (reference engine, pure Python, 2 vCPU)
+## What's measured (v0.4.1 · pure Python · Linux x86_64)
 
-| Operation | Result |
-|---|---|
-| GET (embedded, in-process) | **~1.2M ops/s** (~800 ns/op) |
-| SET (logged + indexed) | ~77K ops/s |
-| Indexed query latency | ~75 µs |
-| File compression — warm (zlib stand-in) | **39.9×** |
-| File compression — cold (LZMA archival) | **88.9×** |
-| Cross-version dedup | 20 of 22 chunks reused on edit |
+Numbers from `python3 bench/benchmarks.py` — reproducible, not cherry-picked.
+Full results in [`bench/RESULTS.md`](bench/RESULTS.md).
 
-The reference engine proves the **architecture**. The Rust core (`rust/`) is the speed target — see `bench/bench_redis.py` for the embedded-vs-Redis harness.
+| Operation | Throughput | Latency |
+|---|---|---|
+| GET (embedded, in-process) | **1.30M/s** | 0.77 µs |
+| GET AS OF (time-travel) | 997K/s | 1.00 µs |
+| PUT (logged, no index) | 63.7K/s | 15.7 µs |
+| PUT durable (AOF + fsync) | 7.0K/s | 143 µs |
+| QUERY: eq filter, eq index | **1.42M/s** | 0.71 µs |
+| QUERY: eq filter, no index (scan) | 515K/s | 1.94 µs |
+| QUERY: SEARCH (inverted index) | 467K/s | 2.14 µs |
+| SQL SELECT → NQL (adapter) | 1.70M/s | 0.59 µs |
+| AutoIndexDB wrapper overhead | ~0% | 0.54 µs |
+| File compression — warm | **39.9×** | — |
+| File compression — cold (LZMA) | **88.9×** | — |
+| Cross-version dedup | 20 of 22 chunks | — |
+
+The reference engine proves the **architecture**. Run `python3 bench/benchmarks.py --redis` to compare against Redis TCP on your own machine. The Rust core (`rust/`) is the future speed target.
 
 ---
 
