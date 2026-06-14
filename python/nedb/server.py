@@ -329,6 +329,70 @@ def make_handler(manager: Manager, token: Optional[str]):
                         ops = [o.to_dict() for o in db.log.ops[-limit:]][::-1]
                         self._send(200, {"log": ops, "seq": db.seq, "head": db.head})
                         return
+                    # MongoDB-compatible query endpoint
+                    # POST /v1/databases/<name>/mongo
+                    # Body: {collection, op, ...op-specific args}
+                    # op can be: find findOne count aggregate insertOne updateOne updateMany
+                    #            deleteOne deleteMany distinct replaceOne
+                    if method == "POST" and action == "mongo":
+                        from .mongo import MongoCompat, MongoError, MongoUnsupportedError
+                        b = self._body()
+                        coll_name = b.get("collection")
+                        op = b.get("op")
+                        if not coll_name or not op:
+                            raise HttpError(400, "collection and op are required")
+                        mc = MongoCompat(db.db if isinstance(db, __import__("nedb.concurrent", fromlist=["Sequencer"]).Sequencer) else db)
+                        coll = mc[str(coll_name)]
+                        try:
+                            result: dict = {}
+                            if op == "find":
+                                filt = b.get("filter") or {}
+                                sort = b.get("sort")
+                                limit = b.get("limit")
+                                skip = b.get("skip", 0)
+                                cur = coll.find(filt)
+                                if sort:
+                                    cur = cur.sort(list(sort.items()) if isinstance(sort, dict) else sort)
+                                if skip: cur = cur.skip(int(skip))
+                                if limit: cur = cur.limit(int(limit))
+                                rows = cur.to_list()
+                                result = {"rows": rows, "count": len(rows)}
+                            elif op == "findOne":
+                                doc = coll.find_one(b.get("filter") or {})
+                                result = {"doc": doc}
+                            elif op == "count":
+                                result = {"count": coll.count_documents(b.get("filter") or {})}
+                            elif op == "distinct":
+                                result = {"values": coll.distinct(str(b.get("key", "_id")), b.get("filter"))}
+                            elif op == "aggregate":
+                                pipeline = b.get("pipeline") or []
+                                result = {"rows": coll.aggregate(pipeline), "count": len(coll.aggregate(pipeline))}
+                            elif op == "insertOne":
+                                r = coll.insert_one(dict(b.get("document") or {}))
+                                result = {"insertedId": r.inserted_id, "acknowledged": r.acknowledged}
+                            elif op == "updateOne":
+                                r = coll.update_one(b.get("filter") or {}, b.get("update") or {}, upsert=bool(b.get("upsert")))
+                                result = {"matchedCount": r.matched_count, "modifiedCount": r.modified_count, "upsertedId": r.upserted_id}
+                            elif op == "updateMany":
+                                r = coll.update_many(b.get("filter") or {}, b.get("update") or {}, upsert=bool(b.get("upsert")))
+                                result = {"matchedCount": r.matched_count, "modifiedCount": r.modified_count, "upsertedId": r.upserted_id}
+                            elif op == "deleteOne":
+                                r = coll.delete_one(b.get("filter") or {})
+                                result = {"deletedCount": r.deleted_count}
+                            elif op == "deleteMany":
+                                r = coll.delete_many(b.get("filter") or {})
+                                result = {"deletedCount": r.deleted_count}
+                            elif op == "replaceOne":
+                                r = coll.replace_one(b.get("filter") or {}, b.get("replacement") or {}, upsert=bool(b.get("upsert")))
+                                result = {"matchedCount": r.matched_count, "modifiedCount": r.modified_count, "upsertedId": r.upserted_id}
+                            else:
+                                raise HttpError(400, f"unknown mongo op: {op!r}")
+                            result["seq"] = db.seq
+                            self._send(200, result)
+                        except (MongoError, MongoUnsupportedError) as e:
+                            raise HttpError(400, str(e))
+                        return
+
                     if method == "POST" and action == "files":
                         b = self._body()
                         fname = b.get("name")
