@@ -222,3 +222,14 @@ The agentic, prompt-to-database GUI for NEDB — natural language → schema, NQ
 ## License
 
 Apache-2.0 · © INTERCHAINED, LLC — [interchained.org](https://interchained.org). Built with [AiAssist](https://aiassist.net).
+
+---
+
+## Authors
+
+Built by **[Mark Allen Evans Jr.](https://interchained.org)** (INTERCHAINED, LLC) with **Claude Sonnet 4.6** on [Hyperagent](https://hyperagent.com/refer/J2G6TCD7).
+
+> *"Take one idea, turn it into an LP, then an app, then a system, then a platform, then infrastructure that is irreplaceable."*
+
+[![Built with Hyperagent](https://img.shields.io/badge/Built%20with-Hyperagent-6366f1?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=)](https://hyperagent.com/refer/J2G6TCD7)
+

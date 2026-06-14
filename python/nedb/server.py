@@ -447,7 +447,21 @@ def main() -> None:
     manager = Manager(data)
     httpd = ThreadingHTTPServer((host, port), make_handler(manager, token))
     auth = "on" if token else "off"
-    print(f"nedbd {__version__} — http://{host}:{port}  data={os.path.abspath(data)}  auth={auth}")
+    BANNER = f"""\
+  ███╗   ██╗███████╗██████╗ ██████╗
+  ████╗  ██║██╔════╝██╔══██╗██╔══██╗
+  ██╔██╗ ██║█████╗  ██║  ██║██████╔╝
+  ██║╚██╗██║██╔══╝  ██║  ██║██╔══██╗
+  ██║ ╚████║███████╗██████╔╝██████╔╝
+  ╚═╝  ╚═══╝╚══════╝╚═════╝ ╚═════╝
+
+  a versioned, time-traveling, encrypted database
+  ─────────────────────────────────────────────────
+  INTERCHAINED, LLC    ×    Claude Sonnet 4.6
+  interchained.org       hyperagent.com/refer/J2G6TCD7
+"""
+    print(BANNER)
+    print(f"  nedbd {__version__} — http://{host}:{port}  data={os.path.abspath(data)}  auth={auth}")
     # Eagerly open all known databases so backfill-encrypt (if needed) runs
     # immediately and is visible in the boot log, not hidden on first request.
     names = manager.names()
