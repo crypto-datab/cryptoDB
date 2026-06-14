@@ -242,10 +242,9 @@ impl Db {
         // ── Candidate selection (index fast-paths) ────────────────────────────
         let candidates: HashSet<String> = if let Some(text) = &plan.search {
             self.idx.search_all(&plan.from, text)
-        } else {
+        } else if let Some(c) = plan.where_.iter().find(|c| c.op == nql::Op::Eq) {
             // Try eq index on first equality condition
-            let eq_cond = plan.where_.iter().find(|c| c.op == nql::Op::Eq);
-            if let Some(c) = eq_cond.filter(|_| self.idx.has_eq(&plan.from, &eq_cond.unwrap().field)) {
+            if self.idx.has_eq(&plan.from, &c.field) {
                 let val_s = match &c.value {
                     nql::Val::Str(s)  => s.clone(),
                     nql::Val::Num(n)  => n.to_string(),
@@ -256,11 +255,11 @@ impl Db {
                     .unwrap_or_default()
             } else {
                 // Full scan
-                self.store.keys(&prefix)
-                    .into_iter()
-                    .cloned()
-                    .collect()
+                self.store.keys(&prefix).into_iter().cloned().collect()
             }
+        } else {
+            // Full scan — no WHERE or no eq index
+            self.store.keys(&prefix).into_iter().cloned().collect()
         };
 
         // ── Load + filter ─────────────────────────────────────────────────────

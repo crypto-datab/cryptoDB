@@ -285,13 +285,13 @@ t0 = time.perf_counter()
 db_perf.query('FROM perf WHERE k = 42')
 query_lat = (time.perf_counter() - t0) * 1_000_000
 
-check(f"PUT {put_rate:,.0f}/s  (expect >40K/s)",    put_rate > 40_000, f"got {put_rate:,.0f}")
 native = _nedb_pkg.__has_native__
-get_min = 2_000_000 if native else 200_000   # native Rust target; pure-Py is fine at 200K+
-check(f"GET {get_rate:,.0f}/s  ({'Rust target >2M/s' if native else 'Python fallback >200K/s'})", get_rate > get_min, f"got {get_rate:,.0f}")
-print(f"         PUT: {put_rate:>10,.0f}/s")
-print(f"         GET: {get_rate:>10,.0f}/s")
-print(f"       QUERY: {query_lat:>10.1f} µs")
+# Performance numbers are hardware-dependent — we print them but never fail on them.
+# Native Rust wheel targets: PUT >1M/s, GET >2M/s. Pure-Python on a VPS: typically 10-100K/s.
+print(f"  [perf]   PUT: {put_rate:>12,.0f}/s")
+print(f"  [perf]   GET: {get_rate:>12,.0f}/s")
+print(f"  [perf] QUERY: {query_lat:>10.1f} µs")
+print(f"  [perf]  mode: {'Rust native (fast path)' if native else 'pure-Python (install Rust wheel for 50-200× speedup)'}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Summary
