@@ -76,7 +76,9 @@ def _err(msg: str) -> bytes:
 def _arr(items: List[Any]) -> bytes:
     out = b"*" + str(len(items)).encode() + b"\r\n"
     for item in items:
-        out += _encode(item)
+        # If the item is already RESP2-encoded bytes (e.g. from _bulk()), use it
+        # directly — calling _encode() on bytes would stringify them ("b'...'").
+        out += item if isinstance(item, bytes) else _encode(item)
     return out
 
 
