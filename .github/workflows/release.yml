@@ -103,6 +103,9 @@ jobs:
         run: twine upload --skip-existing dist/*.whl
 
   # ----------------------------------------------------------------- npm -----
+  # Builds the napi-rs native addon for each platform via @napi-rs/cli.
+  # Produces platform-specific .node binaries + the JS/TS shims.
+  # Root package.json drives the build; nedb-node/Cargo.toml is the Rust crate.
   node-binaries:
     name: napi (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -111,8 +114,8 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
-          - { os: macos-latest,   target: aarch64-apple-darwin }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: macos-latest,   target: aarch64-apple-darwin      }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc   }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -122,9 +125,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: npm install
+      - name: Install @napi-rs/cli
+        run: npm install
       - name: Build native addon
-        run: npx @napi-rs/cli build --platform --release --target ${{ matrix.target }} --cargo-cwd rust/crates/nedb-node
+        # @napi-rs/cli v2 resolves config from package.json (napi.name, triples).
+        # --cargo-cwd points to the crate; output (.node, index.js, index.d.ts)
+        # lands in the repo root where package.json expects it.
+        run: npx napi build --platform --release --target ${{ matrix.target }} --cargo-cwd rust/crates/nedb-node
       - uses: actions/upload-artifact@v4
         with:
           name: node-${{ matrix.target }}
@@ -134,7 +141,7 @@ jobs:
             index.d.ts
 
   publish-npm:
-    needs: node-binaries
+    needs: [node-binaries]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -148,7 +155,7 @@ jobs:
           pattern: node-*
           merge-multiple: true
           path: .
-      - name: Publish to npm (all platform binaries bundled in one package)
+      - name: Publish to npm (all platform binaries bundled)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
