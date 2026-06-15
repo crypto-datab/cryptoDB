@@ -240,25 +240,45 @@ impl Db {
         let as_of  = plan.as_of;
 
         // ── Candidate selection (index fast-paths) ────────────────────────────
+        // IMPORTANT: index fast-paths are only valid for HEAD reads (as_of == None).
+        // AS OF queries require a full scan because eq/search indexes reflect
+        // the current HEAD state, not the historical state at the given seq.
+        // (Mirrors the Python reference engine: `if candidates is None and as_of is None:`)
         let candidates: HashSet<String> = if let Some(text) = &plan.search {
-            self.idx.search_all(&plan.from, text)
-        } else if let Some(c) = plan.where_.iter().find(|c| c.op == nql::Op::Eq) {
-            // Try eq index on first equality condition
-            if self.idx.has_eq(&plan.from, &c.field) {
-                let val_s = match &c.value {
-                    nql::Val::Str(s)  => s.clone(),
-                    nql::Val::Num(n)  => n.to_string(),
-                    nql::Val::Bool(b) => b.to_string(),
-                    nql::Val::Null    => "null".into(),
-                };
-                self.idx.eq_lookup(&plan.from, &c.field, &val_s)
-                    .unwrap_or_default()
+            // Search index is also HEAD-only; fall through to scan for AS OF
+            if as_of.is_none() {
+                self.idx.search_all(&plan.from, text)
             } else {
-                // Full scan
+                self.store.keys(&prefix).into_iter().cloned().collect()
+            }
+        } else if as_of.is_none() {
+            if let Some(c) = plan.where_.iter().find(|c| c.op == nql::Op::Eq) {
+                // Try eq index — only for HEAD reads
+                if self.idx.has_eq(&plan.from, &c.field) {
+                    // Numbers: store the integer form if the float is whole (e.g. 5.0 → "5")
+                    // so it matches how serde_json serializes integer JSON numbers.
+                    let val_s = match &c.value {
+                        nql::Val::Str(s)  => s.clone(),
+                        nql::Val::Num(n)  => {
+                            if n.fract() == 0.0 && *n >= i64::MIN as f64 && *n <= i64::MAX as f64 {
+                                (*n as i64).to_string()
+                            } else {
+                                n.to_string()
+                            }
+                        }
+                        nql::Val::Bool(b) => b.to_string(),
+                        nql::Val::Null    => "null".into(),
+                    };
+                    self.idx.eq_lookup(&plan.from, &c.field, &val_s)
+                        .unwrap_or_default()
+                } else {
+                    self.store.keys(&prefix).into_iter().cloned().collect()
+                }
+            } else {
                 self.store.keys(&prefix).into_iter().cloned().collect()
             }
         } else {
-            // Full scan — no WHERE or no eq index
+            // AS OF: always full scan (index reflects HEAD, not history)
             self.store.keys(&prefix).into_iter().cloned().collect()
         };
 
