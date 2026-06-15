@@ -265,10 +265,28 @@ pub fn parse(nql: &str) -> Result<Plan, String> {
 // ── Comparator ────────────────────────────────────────────────────────────────
 
 pub fn cmp(doc_val: &serde_json::Value, op: &Op, query_val: &Val) -> bool {
+    // For numeric equality/inequality, compare f64 values rather than the
+    // serde_json::Value directly. `serde_json::json!(3.0f64)` stores the
+    // number as N::Float(3.0), but a JSON integer `3` in a document is stored
+    // as N::PosInt(3). serde_json's PartialEq considers these NOT equal even
+    // though they represent the same number — causing WHERE n = 3 to reject
+    // documents where n was stored as an integer.
     let qv = query_val.to_json();
     match op {
-        Op::Eq => doc_val == &qv,
-        Op::Ne => doc_val != &qv,
+        Op::Eq => {
+            // Numeric equality: compare as f64 so integer 3 == float 3.0
+            match (doc_val.as_f64(), qv.as_f64()) {
+                (Some(a), Some(b)) => (a - b).abs() < f64::EPSILON * a.abs().max(b.abs()).max(1.0),
+                // Fall back to exact serde_json equality for non-numeric types
+                _ => doc_val == &qv,
+            }
+        }
+        Op::Ne => {
+            match (doc_val.as_f64(), qv.as_f64()) {
+                (Some(a), Some(b)) => (a - b).abs() >= f64::EPSILON * a.abs().max(b.abs()).max(1.0),
+                _ => doc_val != &qv,
+            }
+        }
         _ => {
             // Numeric or string comparison
             let a = doc_val.as_f64().or_else(|| doc_val.as_str().map(|_| f64::NAN));
