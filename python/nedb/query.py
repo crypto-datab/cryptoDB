@@ -36,7 +36,7 @@ _TOKEN_RE = re.compile(
 
 _KEYWORDS = {"from", "as", "of", "where", "and", "search", "order", "by",
              "asc", "desc", "traverse", "trace", "reverse", "limit",
-             "true", "false", "null", "group", "count", "sum", "avg", "min", "max"}
+             "valid", "true", "false", "null", "group", "count", "sum", "avg", "min", "max"}
 
 
 def _lex(text: str) -> List[Tuple[str, Any]]:
@@ -68,7 +68,8 @@ def empty_plan(coll: str) -> dict:
     return {"from": coll, "as_of": None, "where": [], "search": None,
             "order_by": None, "traverse": None, "limit": None,
             "group_by": None, "aggregate": None,
-            "trace": None, "trace_reverse": False}
+            "trace": None, "trace_reverse": False,
+            "valid_as_of": None}
 
 
 def parse_nql(text: str) -> dict:
@@ -116,6 +117,24 @@ def parse_nql(text: str) -> dict:
         i += 1
         plan["as_of"] = int(v)
 
+    # VALID AS OF <date>  — bi-temporal valid-time filter
+    # Syntax: VALID AS OF "2024-02-15"  (ISO 8601 date or datetime string)
+    # Can appear before or after WHERE; "valid" is the disambiguating keyword.
+    if peek() == ("kw", "valid"):
+        i += 1
+        # expect AS OF
+        t, v = peek()
+        if t == "kw" and v == "as":
+            i += 1
+        t, v = peek()
+        if t == "kw" and v == "of":
+            i += 1
+        t, v = peek()
+        if t != "str":
+            raise SyntaxError("NQL: VALID AS OF expects a quoted date string")
+        i += 1
+        plan["valid_as_of"] = v
+
     # WHERE ... AND ...
     if peek() == ("kw", "where"):
         i += 1
@@ -133,6 +152,17 @@ def parse_nql(text: str) -> dict:
                 i += 1
                 continue
             break
+
+    # VALID AS OF <date> — also accepted after WHERE (second position)
+    if peek() == ("kw", "valid") and plan["valid_as_of"] is None:
+        i += 1
+        for kw in ("as", "of"):
+            if peek()[1] == kw: i += 1
+        t, v = peek()
+        if t != "str":
+            raise SyntaxError("NQL: VALID AS OF expects a quoted date string")
+        i += 1
+        plan["valid_as_of"] = v
 
     # SEARCH "text"
     if peek() == ("kw", "search"):

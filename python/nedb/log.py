@@ -60,12 +60,22 @@ class Op:
     #   evidence   — source type: "user_message" | "inference" | "tool_result"
     #                             | "correction" | "external"
     #   confidence — agent's certainty in this write (0.0 – 1.0).
-    #
-    # Backward-compatible: old ops that lack these fields omit them from the
-    # hash body so existing chain hashes verify without modification.
     caused_by:  Optional[List[int]] = None
     evidence:   Optional[str]       = None
     confidence: Optional[float]     = None
+
+    # ── Bi-temporal valid time (v1.0.0+) ─────────────────────────────────────
+    # When was this fact TRUE IN THE WORLD (independent of when it was written)?
+    #   valid_from — ISO 8601 date/datetime string; None = "from the beginning"
+    #   valid_to   — ISO 8601 date/datetime string; None = "still valid / open-ended"
+    #
+    # ISO 8601 strings sort lexicographically correctly, so comparisons are
+    # safe as plain string ops:  "2024-01-01" < "2024-06-15" ✓
+    #
+    # Backward-compatible: ops without valid-time fields are treated as always
+    # valid (they pass every VALID AS OF filter). Existing chains verify unchanged.
+    valid_from: Optional[str] = None
+    valid_to:   Optional[str] = None
 
     def to_dict(self) -> dict:
         """Serialize for the append-only log file (AOF)."""
@@ -77,6 +87,8 @@ class Op:
         if self.caused_by  is not None: d["caused_by"]  = self.caused_by
         if self.evidence   is not None: d["evidence"]   = self.evidence
         if self.confidence is not None: d["confidence"] = self.confidence
+        if self.valid_from is not None: d["valid_from"] = self.valid_from
+        if self.valid_to   is not None: d["valid_to"]   = self.valid_to
         return d
 
     @classmethod
@@ -87,6 +99,8 @@ class Op:
             caused_by  = d.get("caused_by"),
             evidence   = d.get("evidence"),
             confidence = d.get("confidence"),
+            valid_from = d.get("valid_from"),
+            valid_to   = d.get("valid_to"),
         )
 
 
@@ -108,6 +122,8 @@ class OpLog:
         caused_by:  Optional[List[int]] = None,
         evidence:   Optional[str]       = None,
         confidence: Optional[float]     = None,
+        valid_from: Optional[str]       = None,
+        valid_to:   Optional[str]       = None,
     ) -> Tuple[Op, bool]:
         """Append an op. Returns (op, created). `created` is False when the op was
         deduplicated by its idempotency key (a no-op replay-safe return)."""
@@ -133,9 +149,12 @@ class OpLog:
         if caused_by  is not None: body["caused_by"]  = caused_by
         if evidence   is not None: body["evidence"]   = evidence
         if confidence is not None: body["confidence"] = confidence
+        if valid_from is not None: body["valid_from"] = valid_from
+        if valid_to   is not None: body["valid_to"]   = valid_to
         h = blake(self._head.encode() + canon(body))
         rec = Op(seq, client, nonce, op, payload, ts, idem, self._head, h,
-                 caused_by=caused_by, evidence=evidence, confidence=confidence)
+                 caused_by=caused_by, evidence=evidence, confidence=confidence,
+                 valid_from=valid_from, valid_to=valid_to)
 
         self.ops.append(rec)
         self._last_nonce[client] = nonce
@@ -166,10 +185,12 @@ class OpLog:
             "seq": o.seq, "client": o.client, "nonce": o.nonce,
             "op": o.op, "payload": o.payload, "ts": o.ts, "idem": o.idem,
         }
-        # Provenance fields included only when present (backward-compat with old ops).
+        # Optional fields included only when present (backward-compat with old ops).
         if o.caused_by  is not None: body["caused_by"]  = o.caused_by
         if o.evidence   is not None: body["evidence"]   = o.evidence
         if o.confidence is not None: body["confidence"] = o.confidence
+        if o.valid_from is not None: body["valid_from"] = o.valid_from
+        if o.valid_to   is not None: body["valid_to"]   = o.valid_to
         return body
 
     def verify(self) -> bool:

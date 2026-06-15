@@ -285,11 +285,14 @@ class NEDB:
                     idem: Optional[str] = None,
                     caused_by: Optional[List[int]] = None,
                     evidence: Optional[str] = None,
-                    confidence: Optional[float] = None):
+                    confidence: Optional[float] = None,
+                    valid_from: Optional[str] = None,
+                    valid_to: Optional[str] = None):
         """Append to the in-memory log AND, if durable, to the AOF (encrypted if DEK set)."""
         rec, created = self.log.append(client, nonce, op, payload, idem,
                                        caused_by=caused_by, evidence=evidence,
-                                       confidence=confidence)
+                                       confidence=confidence,
+                                       valid_from=valid_from, valid_to=valid_to)
         if created and self._aof is not None:
             line = _crypto.aof_encode(json.dumps(rec.to_dict()), self._dek)
             self._aof.write(line + "\n")
@@ -394,27 +397,53 @@ class NEDB:
             return None
         return doc
 
+    @staticmethod
+    def _valid_at(doc: dict, date: str) -> bool:
+        """Return True if the doc is valid at `date` (ISO 8601 string).
+
+        Bi-temporal check:
+          - Docs without _valid_from / _valid_to are ALWAYS valid (backward compat).
+          - _valid_from <= date  (or _valid_from absent → open start)
+          - _valid_to   >= date  (or _valid_to   absent → open end / still valid)
+
+        ISO 8601 strings compare correctly lexicographically so simple str ops work.
+        """
+        vf = doc.get("_valid_from")
+        vt = doc.get("_valid_to")
+        if vf is None and vt is None:
+            return True          # no valid-time metadata → always valid
+        if vf is not None and date < vf:
+            return False         # not yet in effect
+        if vt is not None and date > vt:
+            return False         # already expired
+        return True
+
     # --- mutations ----------------------------------------------------------
     def put(self, coll: str, id: str, doc: dict, client: str = "local",
             nonce: Optional[int] = None, idem: Optional[str] = None,
             ttl_s: Optional[float] = None,
             caused_by: Optional[List[int]] = None,
             evidence: Optional[str] = None,
-            confidence: Optional[float] = None) -> dict:
+            confidence: Optional[float] = None,
+            valid_from: Optional[str] = None,
+            valid_to: Optional[str] = None) -> dict:
         key = f"{coll}:{id}"
         doc = dict(doc)
         doc.setdefault("_id", id)
         doc = self._embed_ttl(doc, ttl_s)
-        # Mirror causal provenance into the doc as queryable _-prefixed fields.
+        # Mirror provenance + valid-time into the doc as queryable _-prefixed fields.
         # They're also sealed in the Op hash via _log_append so they're tamper-evident.
         if caused_by  is not None: doc["_caused_by"]  = caused_by
         if evidence   is not None: doc["_evidence"]   = evidence
         if confidence is not None: doc["_confidence"] = confidence
+        if valid_from is not None: doc["_valid_from"] = valid_from
+        if valid_to   is not None: doc["_valid_to"]   = valid_to
         nonce = self._next(client) if nonce is None else nonce
         op, created = self._log_append(client, nonce, "put",
                                        {"key": key, "coll": coll, "id": id, "doc": doc},
                                        idem, caused_by=caused_by,
-                                       evidence=evidence, confidence=confidence)
+                                       evidence=evidence, confidence=confidence,
+                                       valid_from=valid_from, valid_to=valid_to)
         if created:
             apply_op(self.store, self.relations, self.indexes, op, self.cause_map)
         return self.store.get(key)
@@ -625,6 +654,14 @@ class NEDB:
 
         if plan.get("limit") is not None:
             rows = rows[: plan["limit"]]
+
+        # VALID AS OF <date> — bi-temporal valid-time filter.
+        # Applied after all other filters so WHERE/ORDER BY/LIMIT can still
+        # reference _valid_from/_valid_to as regular queryable fields.
+        # Docs without _valid_from/_valid_to always pass (backward compat).
+        valid_date = plan.get("valid_as_of")
+        if valid_date:
+            rows = [(k, d) for k, d in rows if self._valid_at(d, valid_date)]
 
         result = [d for _, d in rows]
 
