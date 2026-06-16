@@ -318,8 +318,8 @@ Encryption:              AES-256-GCM at-rest (TMK/DEK double-envelope)
 Connect to any running nedbd instance from Python or TypeScript without embedding the engine:
 
 ```bash
-pip install nedb-client          # async Python
-npm install nedb-client          # TypeScript / Node.js 18+
+pip install nedb-engine-client          # async Python
+npm install nedb-engine-client   # TypeScript / Node.js 18+
 ```
 
 ```python
@@ -333,7 +333,7 @@ async with NedbClient("http://127.0.0.1:7070", db="mydb") as db:
 ```
 
 ```typescript
-import { NedbClient } from "nedb-client";
+import { NedbClient } from "nedb-engine-client";
 const db = new NedbClient({ url: "http://127.0.0.1:7070", db: "mydb" });
 await db.put("blocks", "618000", { height: 618000 });
 const rows = await db.query("FROM blocks LIMIT 10");
@@ -351,7 +351,7 @@ rust/
   nedb-node/        napi-rs binding → npm native addons
   nedb-v2/          v2 DAG engine (tokio + axum + BLAKE2b DAG)
 client/
-  python/           nedb-client — async Python HTTP client (pip install nedb-client)
+  python/           nedb-client — async Python HTTP client (pip install nedb-engine-client)
   node/             nedb-client — TypeScript HTTP client  (npm install nedb-client)
 tests/              engine + concurrent + causal + bitemporal + deploy + perf benchmarks
 examples/           resp2_python.py  resp2_demo.sh

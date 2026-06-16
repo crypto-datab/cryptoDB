@@ -1,9 +1,8 @@
 name: release-client
 
-# Publishes nedb-client on a client version tag: cv*
-# Tags: cv1.0.0, cv1.0.1, etc.
-#   * PyPI — nedb-client (pure Python wheel + sdist)
-#   * npm  — nedb-client (compiled TypeScript)
+# Publishes the NEDB HTTP client on a cv* tag:
+#   * PyPI — nedb-engine-client         (pure Python wheel + sdist)
+#   * npm  — nedb-engine-client  (compiled TypeScript — nedb-client was taken)
 
 on:
   push:
