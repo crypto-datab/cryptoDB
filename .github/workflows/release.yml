@@ -49,9 +49,9 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, label: linux-x86_64   }
-          - { os: macos-latest,   target: aarch64-apple-darwin,      label: macos-arm64   }
-          - { os: macos-13,       target: x86_64-apple-darwin,       label: macos-x86_64  }
           - { os: windows-latest, target: x86_64-pc-windows-msvc,   label: windows-x86_64}
+          # macOS wheels (arm64 + x86_64) are built by Codemagic on M2 Mac Minis.
+          # Removing them here eliminates the shared-runner queue wait entirely.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -132,9 +132,8 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu  }
-          - { os: macos-latest,   target: aarch64-apple-darwin       }
-          - { os: macos-13,       target: x86_64-apple-darwin        }
           - { os: windows-latest, target: x86_64-pc-windows-msvc    }
+          # macOS napi builds handled by Codemagic — no Mac runners needed here.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
