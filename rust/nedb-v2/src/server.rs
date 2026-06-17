@@ -405,14 +405,25 @@ async fn put_document(
             "database startup in progress — reads available, writes retry in a moment");
     }
     let caused_by = body.caused_by.unwrap_or_default();
-    match db.put(&body.coll, &body.id, body.doc, caused_by, body.valid_from, body.valid_to) {
-        Ok(node) => {
+    // Run synchronous file I/O (objects.write) on a blocking thread so concurrent
+    // PUTs don't serialize on the tokio async thread pool.
+    let coll = body.coll.clone();
+    let id   = body.id.clone();
+    let doc  = body.doc.clone();
+    let vf   = body.valid_from.clone();
+    let vt   = body.valid_to.clone();
+    let db2  = Arc::clone(&db);
+    let result = tokio::task::spawn_blocking(move || {
+        db2.put(&coll, &id, doc, caused_by, vf, vt)
+    }).await;
+    match result {
+        Err(join_err) => err(StatusCode::INTERNAL_SERVER_ERROR, &join_err.to_string()),
+        Ok(Err(e))    => err(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+        Ok(Ok(node))  => {
             let (seq, head) = db_seq_head(&db);
-            // Notify live query subscribers of the write
             mgr.notify_subscribers(&name, &db);
             ok(json!({"ok": true, "doc": node_to_response(&node), "seq": seq, "head": head}))
         }
-        Err(e) => err(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
     }
 }
 
