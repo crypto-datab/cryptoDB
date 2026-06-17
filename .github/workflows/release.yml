@@ -42,7 +42,8 @@ jobs:
   wheels:
     name: Python native wheel (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: true   # slow/unavailable Mac runners don't block other platforms
+    timeout-minutes: 40        # fail fast if runner is unavailable — continue-on-error handles it
+    continue-on-error: true    # slow/unavailable Mac runners don't block other platforms
     strategy:
       fail-fast: false
       matrix:
@@ -124,7 +125,8 @@ jobs:
   node-binaries:
     name: napi (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: true   # slow Mac runners don't block Linux/Windows napi builds
+    timeout-minutes: 40        # fail fast if runner unavailable — continue-on-error handles it
+    continue-on-error: true    # slow Mac runners don't block Linux/Windows napi builds
     strategy:
       fail-fast: false
       matrix:
