@@ -52,6 +52,7 @@ workflows:
 
       - name: Build nedbd-v2 binary
         script: |
+          set -euo pipefail
           source "$HOME/.cargo/env"
           # Build from the workspace root (rust/) so cargo uses the workspace Cargo.lock.
           # Output lands in rust/target/<triple>/release/nedbd (workspace target dir).
@@ -144,13 +145,21 @@ workflows:
 
       - name: Build nedbd-v2 binary (cross-compile x86_64)
         script: |
+          set -euo pipefail
           source "$HOME/.cargo/env"
-          cd rust/nedb-v2
-          cargo build --release --target $RUST_TARGET
-          BIN="target/$RUST_TARGET/release/nedbd"
-          cp "$BIN" ../../python/nedb/nedbd-v2
-          chmod +x ../../python/nedb/nedbd-v2
-          echo "Binary: $(ls -lh ../../python/nedb/nedbd-v2)"
+          # Cross-compile x86_64 from M2: configure the Xcode clang linker explicitly
+          export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER="$(xcrun --find clang)"
+          export CC_x86_64_apple_darwin="$(xcrun --find clang)"
+          export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          rustup target add $RUST_TARGET
+          cd rust
+          cargo build --release --bin nedbd --package nedb-core-v2 --target $RUST_TARGET
+          cd ..
+          BIN="rust/target/$RUST_TARGET/release/nedbd"
+          echo "Binary built: $(ls -lh $BIN)"
+          cp "$BIN" python/nedb/nedbd-v2
+          chmod +x python/nedb/nedbd-v2
+          echo "Binary staged: $(ls -lh python/nedb/nedbd-v2)"
 
       - name: Stage Python source + verify binary
         script: |
