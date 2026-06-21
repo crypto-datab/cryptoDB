@@ -111,11 +111,17 @@ class HttpDb:
         self._v = None
 
     def neighbors(self, node: str, rel: str):
-        """Returns list of neighbor node ID strings (e.g. ['person:mark', ...])."""
-        rows = self._query_rows(f'FROM __links__ LIMIT 500')
-        # __links__ rows: {_from, _rel, _to}
-        return [row["_to"] for row in rows
-                if row.get("_from") == node and row.get("_rel") == rel]
+        """Returns list of neighbor node ID strings via NQL TRAVERSE."""
+        if ":" not in node:
+            return []
+        coll, nid = node.split(":", 1)
+        try:
+            rows = self._query_rows(
+                f'FROM {coll} WHERE _id = "{nid}" TRAVERSE {rel}'
+            )
+            return [row.get("_id", str(i)) for i, row in enumerate(rows)]
+        except RuntimeError:
+            return []
 
     def query(self, nql: str):
         """Returns list of JSON strings (mirrors NedbCore.query)."""
