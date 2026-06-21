@@ -97,7 +97,12 @@ class HttpDb:
     def put(self, coll: str, rid: str, doc_json: str) -> str:
         """Returns JSON string with _hash and _seq (mirrors NedbCore.put)."""
         doc = json.loads(doc_json)
-        r = _http("POST", self._url("put"), {"coll": coll, "id": rid, "doc": doc})
+        body: dict = {"coll": coll, "id": rid, "doc": doc}
+        # The server reads caused_by from the TOP-LEVEL body, not from inside doc.
+        # Hoist it so the DAG engine records the causal link correctly.
+        if "caused_by" in doc:
+            body["caused_by"] = doc["caused_by"]
+        r = _http("POST", self._url("put"), body)
         self._v = None  # invalidate cached verify
         return json.dumps(r.get("doc", {}))
 
