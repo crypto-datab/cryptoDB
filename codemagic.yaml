@@ -108,18 +108,8 @@ workflows:
           cp python/nedb/nedbd-v2 nedbd-v2-darwin-arm64
           gh release upload "$TAG" nedbd-v2-darwin-arm64 --repo Eth-Interchained/nedb --clobber
           # _native extension (so pypi fat-wheel includes it for Mac users)
-          for f in dist/*.whl; do
-            python3 -c "
-import zipfile, os, sys
-with zipfile.ZipFile('$f') as z:
-    for name in z.namelist():
-        if '_native' in name and name.startswith('nedb/'):
-            z.extract(name, '.')
-            src = name
-            dst = os.path.basename(name)
-            os.rename(src, dst)
-            print('extracted:', dst)
-"
+          for whl in dist/*.whl; do
+            unzip -j "$whl" "nedb/_native*" -d . 2>/dev/null || true
           done
           for f in _native*darwin*arm64*; do
             [ -f "$f" ] && gh release upload "$TAG" "$f" --repo Eth-Interchained/nedb --clobber || true
@@ -221,18 +211,8 @@ with zipfile.ZipFile('$f') as z:
           cp python/nedb/nedbd-v2 nedbd-v2-darwin-x64
           gh release upload "$TAG" nedbd-v2-darwin-x64 --repo Eth-Interchained/nedb --clobber
           # _native extension
-          for f in dist/*.whl; do
-            python3 -c "
-import zipfile, os, sys
-with zipfile.ZipFile('$f') as z:
-    for name in z.namelist():
-        if '_native' in name and name.startswith('nedb/'):
-            z.extract(name, '.')
-            src = name
-            dst = os.path.basename(name)
-            os.rename(src, dst)
-            print('extracted:', dst)
-"
+          for whl in dist/*.whl; do
+            unzip -j "$whl" "nedb/_native*" -d . 2>/dev/null || true
           done
           for f in _native*darwin*x86_64*; do
             [ -f "$f" ] && gh release upload "$TAG" "$f" --repo Eth-Interchained/nedb --clobber || true
