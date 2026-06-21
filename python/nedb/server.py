@@ -569,8 +569,19 @@ def main() -> None:
         # 2. PATH
         # 3. Cargo release build relative to CWD (built from source)
         # 4. Cargo release build relative to the package location
-        _names = ["nedbd-v2", "nedbd_v2", "nedbd-v2.exe", "nedbd_v2.exe"]
-        _cargo_names = ["nedbd", "nedbd.exe"]  # cargo output is just "nedbd"
+        import platform as _platform
+        _ext  = ".exe" if _sys.platform == "win32" else ""
+        _arch = "arm64" if _platform.machine() in ("arm64", "aarch64") else "x64"
+        # Platform-specific names (in order of preference)
+        _names = (
+            # Mac: platform-specific binary bundled in fat wheel
+            ([f"nedbd-v2-darwin-{_arch}"] if _sys.platform == "darwin" else []) +
+            # Linux/Windows: generic names (also bundled in fat wheel)
+            ["nedbd-v2" + _ext, "nedbd_v2" + _ext] +
+            # Fallback: try both exe variants
+            (["nedbd-v2.exe", "nedbd_v2.exe"] if _sys.platform != "win32" else [])
+        )
+        _cargo_names = ["nedbd", "nedbd.exe"]
         _cargo_dirs = [
             os.path.join(_cwd, "rust", "nedb-v2", "target", "release"),
             os.path.join(_cwd, "target", "release"),
