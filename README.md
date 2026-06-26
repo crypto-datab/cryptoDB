@@ -20,9 +20,11 @@ One Rust core → ships to **PyPI** and **npm** from a single source.
 
 ---
 
-## NEDB v2.2.31 — Production Stable
+## NEDB v2.3.33 — Production Stable
 
-**Current stable: 2.2.31** — Cross-platform native wheels shipping `nedbd-v2` binary inside `pip install nedb-engine`. Linux + Windows wheels built on GitHub Actions; macOS arm64 + x86_64 wheels built on Codemagic (M2 Mac Minis). All four platforms publish from one `v*` tag.
+**Current stable: 2.3.33** — Cross-platform native wheels shipping `nedbd-v2` binary inside `pip install nedb-engine`. Linux + Windows wheels built on GitHub Actions; macOS arm64 + x86_64 wheels built on Codemagic (M2 Mac Minis). All four platforms publish from one `v*` tag.
+
+**New in 2.3.33:** durable **flush-on-close** (a `Db` persists buffered writes when dropped, matching sled/RocksDB); a **cross-platform id-index** that percent-encodes filesystem-unsafe document ids (link ids, paths) so they persist on **Windows** as well as POSIX; idempotent object re-writes; and an opt-in **v3 segment/pack store** (`--dag-v3`, default off) that batches loose objects into append-only segments with compaction + `.idx` sidecars.
 
 NEDB v2 replaces the append-only log (AOF) with a **content-addressed Merkle DAG**. Every document version is an immutable, BLAKE2b-verified object. Nothing is ever overwritten. As of **v2.2.31**, restarts after the first open are **O(1) warm starts** (driven by a `MANIFEST` of `seq` + Merkle head), the **cold scan is deferred** so the daemon accepts connections immediately, and a new **`GET /events` SSE endpoint** streams scan progress + per-write events live.
 
