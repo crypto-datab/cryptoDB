@@ -68,9 +68,16 @@ function main() {
     }
   }
 
+  // crypto-database default: the verifiable v3 segment store. Injected into the
+  // daemon's env (the engine reads NEDB_DAG_V3 at database open). Set-if-unset,
+  // so an explicit NEDB_DAG_V3=0 (or --dag-v3) from the caller still wins.
+  const env = { ...process.env };
+  if (env.NEDB_DAG_V3 === undefined) env.NEDB_DAG_V3 = "1";
+
   const child = spawn(binPath, process.argv.slice(2), {
     stdio: "inherit",
     windowsHide: false,
+    env,
   });
 
   child.on("error", (err) => {
