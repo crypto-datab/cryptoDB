@@ -4,20 +4,26 @@
 # Rust core (rust/) remains for the napi (npm) addon and future native PyPI
 # acceleration, reintroduced additively; `nedb._native` already imports lazily
 # and the package works identically without it.
+#
+# NOTE: the PyPI distribution name stays `cryptodb` because `crypto-database` is
+# already taken on PyPI by an unrelated third-party project. The npm and crates.io
+# distributions publish as `crypto-database`; PyPI stays `cryptodb`. Same engine,
+# same version, same code — split registry identity by necessity.
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "cryptodb"
-version = "2.4.3"
+version = "2.4.4"
 description = "NEDB — a versioned, self-compressing, time-traveling embedded database (replay-protected, idempotent, relational, searchable) with durable AOF persistence and a server daemon (nedbd)."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Eth-Interchained" }]
 keywords = ["database", "embedded", "mvcc", "time-travel", "versioning",
-            "compression", "dedup", "graph", "search", "redis", "git", "persistence", "server"]
+            "compression", "dedup", "graph", "search", "redis", "git", "persistence", "server",
+            "cryptodb", "crypto-database"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
