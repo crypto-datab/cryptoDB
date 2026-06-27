@@ -1,3 +1,11 @@
+# cryptodb
+
+> The verifiable v2/v3 distribution of NEDB: content-addressed Merkle DAG, AS OF time-travel, causal provenance, BLAKE2b tamper-evidence.
+>
+> Built from the shared **NEDB** core (`nedb-engine`). Identical to the engine today; distribution-specific defaults land here in a later release. Engine development happens upstream at Eth-Interchained/nedb.
+
+---
+
 <div align="center">
 
 # NEDB
