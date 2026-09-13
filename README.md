@@ -1,6 +1,17 @@
 <h1 align="center">crypto-database</h1>
 <p align="center"><b>The database that can prove it never lied.</b></p>
 
+<p align="center">
+<a href="https://pypi.org/project/cryptodb/"><img alt="PyPI" src="https://img.shields.io/pypi/v/cryptodb?label=PyPI%20%C2%B7%20cryptodb&color=6366f1"></a>
+<a href="https://www.npmjs.com/package/crypto-database"><img alt="npm" src="https://img.shields.io/npm/v/crypto-database?label=npm&color=00d4ff"></a>
+<a href="https://crates.io/crates/crypto-database"><img alt="crates.io" src="https://img.shields.io/crates/v/crypto-database?label=crates.io&color=f97316"></a>
+<a href="https://pypi.org/project/cryptodb/"><img alt="Python" src="https://img.shields.io/pypi/pyversions/cryptodb?label=python&color=3776ab"></a>
+<a href="LICENSE"><img alt="licence" src="https://img.shields.io/badge/license-BUSL--1.1-f59e0b"></a>
+<a href="LICENSE"><img alt="free under $1M" src="https://img.shields.io/badge/free%20under%20%241M%20revenue-22c55e"></a>
+</p>
+
+<p align="center"><i>One version across npm · PyPI · crates.io — every release ships aligned.</i></p>
+
 ---
 
 crypto-database is a **content-addressed, hash-chained, time-traveling** datastore. Every version of every record is an immutable, **BLAKE2b-verified** object in a Merkle DAG — nothing is ever overwritten, and the store can prove its own integrity on demand.
